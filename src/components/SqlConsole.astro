@@ -1,0 +1,191 @@
+---
+// A tiny in-browser SQL console that queries your resume data.
+// The tables are built in src/pages/index.astro from resume.ts and your projects.
+import Icon from './Icon.astro';
+
+interface Props {
+  db: Record<string, Record<string, string | number>[]>;
+  examples: string[];
+}
+
+const { db, examples } = Astro.props;
+// Escape "<" so the JSON can't break out of its <script> tag.
+const json = JSON.stringify(db).replace(/</g, '\\u003c');
+---
+
+<div
+  class="sql-console rounded-xl border border-slate-200 bg-slate-50 p-4 sm:p-5 dark:border-slate-800 dark:bg-slate-900/60 dark:backdrop-blur-sm"
+>
+  <div class="mb-3 flex flex-wrap items-center gap-2 text-sm text-slate-500">
+    <Icon name="database" class="h-4 w-4 text-accent" />
+    <span>resume.db</span>
+    <span aria-hidden="true">·</span>
+    <span>tables: <span class="font-mono">{Object.keys(db).join(', ')}</span></span>
+  </div>
+
+  <div class="mb-3 flex flex-wrap gap-2">
+    {
+      examples.map((q) => (
+        <button
+          type="button"
+          data-example={q}
+          class="rounded-md border border-slate-300 bg-white px-2 py-1 text-left font-mono text-xs hover:border-accent hover:text-accent dark:border-slate-700 dark:bg-slate-950"
+        >
+          {q}
+        </button>
+      ))
+    }
+  </div>
+
+  <form class="flex gap-2" data-sql-form>
+    <label for="sql-input" class="self-center font-mono text-sm text-accent">sql&gt;</label>
+    <input
+      id="sql-input"
+      name="q"
+      autocomplete="off"
+      spellcheck="false"
+      placeholder="SELECT * FROM skills;"
+      class="min-w-0 flex-1 rounded-md border border-slate-300 bg-white px-3 py-2 font-mono text-sm outline-none focus:border-accent dark:border-slate-700 dark:bg-slate-950"
+    />
+    <button
+      type="submit"
+      class="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 dark:text-slate-950"
+    >
+      Run
+    </button>
+  </form>
+
+  <p data-sql-error class="mt-2 min-h-5 text-sm text-red-600 dark:text-red-400" role="alert"></p>
+  <div data-sql-output class="overflow-x-auto"></div>
+
+  <script is:inline type="application/json" data-sql-db set:html={json}></script>
+</div>
+
+<script>
+  type Row = Record<string, string | number>;
+
+  const root = document.querySelector<HTMLElement>('.sql-console');
+
+  if (root) {
+    const db: Record<string, Row[]> = JSON.parse(
+      root.querySelector('[data-sql-db]')?.textContent || '{}',
+    );
+    const form = root.querySelector<HTMLFormElement>('[data-sql-form]')!;
+    const input = root.querySelector<HTMLInputElement>('#sql-input')!;
+    const err = root.querySelector<HTMLElement>('[data-sql-error]')!;
+    const out = root.querySelector<HTMLElement>('[data-sql-output]')!;
+
+    const esc = (v: unknown) =>
+      String(v).replace(
+        /[&<>"]/g,
+        (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[ch] as string,
+      );
+
+    const fail = (msg: string) => {
+      err.textContent = msg;
+      out.innerHTML = '';
+    };
+
+    // Supports: SELECT cols FROM table [WHERE col = 'v' | WHERE col LIKE '%v%'] [ORDER BY col [ASC|DESC]] [LIMIT n]
+    const pattern =
+      /^select\s+(.+?)\s+from\s+(\w+)(?:\s+where\s+(\w+)\s*(=|like)\s*'([^']*)')?(?:\s+order\s+by\s+(\w+)(?:\s+(asc|desc))?)?(?:\s+limit\s+(\d+))?$/i;
+
+    const run = (sql: string) => {
+      err.textContent = '';
+      const s = sql.trim().replace(/;\s*$/, '');
+      if (!s) return fail('Type a query first, or click an example.');
+
+      const m = s.match(pattern);
+      if (!m) {
+        return fail(
+          "Supported: SELECT cols FROM table [WHERE col = 'value' | LIKE '%text%'] [ORDER BY col DESC] [LIMIT n]",
+        );
+      }
+
+      const [, colPart, table, whereCol, op, whereVal, orderCol, dir, limit] = m;
+      const source = db[table.toLowerCase()];
+      if (!source) return fail(`Table '${table}' doesn't exist. Try: ${Object.keys(db).join(', ')}`);
+
+      const allCols = Object.keys(source[0] ?? {});
+      const cols =
+        colPart.trim() === '*' ? allCols : colPart.split(',').map((c) => c.trim().toLowerCase());
+
+      const referenced = [...cols, whereCol, orderCol]
+        .filter((c): c is string => Boolean(c))
+        .map((c) => c.toLowerCase());
+      const unknown = referenced.find((c) => !allCols.includes(c));
+      if (unknown) return fail(`Unknown column '${unknown}'. Columns: ${allCols.join(', ')}`);
+
+      let rows = source;
+
+      if (whereCol) {
+        const col = whereCol.toLowerCase();
+        const val = whereVal.toLowerCase();
+        if (op.toLowerCase() === 'like') {
+          const re = new RegExp(
+            '^' +
+              val
+                .replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+                .replace(/%/g, '.*')
+                .replace(/_/g, '.') +
+              '$',
+            'i',
+          );
+          rows = rows.filter((r) => re.test(String(r[col])));
+        } else {
+          rows = rows.filter((r) => String(r[col]).toLowerCase() === val);
+        }
+      }
+
+      if (orderCol) {
+        const col = orderCol.toLowerCase();
+        const sign = dir?.toLowerCase() === 'desc' ? -1 : 1;
+        rows = [...rows].sort(
+          (a, b) =>
+            String(a[col]).localeCompare(String(b[col]), undefined, { numeric: true }) * sign,
+        );
+      }
+
+      if (limit) rows = rows.slice(0, Number(limit));
+
+      const head = cols
+        .map(
+          (c) =>
+            `<th class="border-b border-slate-200 px-3 py-2 text-left font-medium text-slate-500 dark:border-slate-800">${esc(c)}</th>`,
+        )
+        .join('');
+      const body = rows
+        .map(
+          (r) =>
+            `<tr>${cols
+              .map(
+                (c) =>
+                  `<td class="border-b border-slate-200 px-3 py-2 dark:border-slate-800">${esc(r[c] ?? '')}</td>`,
+              )
+              .join('')}</tr>`,
+        )
+        .join('');
+
+      out.innerHTML = `<table class="mt-1 w-full border-collapse text-sm"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table><p class="mt-2 text-xs text-slate-500">${rows.length} row(s)</p>`;
+    };
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+      run(input.value);
+    });
+    input.addEventListener('input', () => (err.textContent = ''));
+
+    root.querySelectorAll<HTMLButtonElement>('[data-example]').forEach((btn) =>
+      btn.addEventListener('click', () => {
+        input.value = btn.dataset.example ?? '';
+        run(input.value);
+      }),
+    );
+
+    const first = root.querySelector<HTMLButtonElement>('[data-example]');
+    if (first) {
+      input.value = first.dataset.example ?? '';
+      run(input.value);
+    }
+  }
+</script>

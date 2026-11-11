@@ -1,0 +1,30 @@
+---
+import { profile } from '../data/resume';
+
+const nav = [
+  { label: 'About', href: '/#about' },
+  { label: 'Skills', href: '/#skills' },
+  { label: 'Portfolio', href: '/#portfolio' },
+  { label: 'Experience', href: '/#experience' },
+  { label: 'Speaking', href: '/#speaking' },
+  { label: 'Contact', href: '/#contact' },
+];
+---
+
+<header class="sticky top-0 z-10 border-b border-slate-200 bg-white/80 backdrop-blur dark:border-slate-800 dark:bg-slate-950/80">
+  <div class="mx-auto flex max-w-5xl items-center justify-between px-5 py-3">
+    <a href="/" class="font-semibold tracking-widest" aria-label={`${profile.name} — home`}>RBEL</a>
+    <nav class="hidden gap-6 text-sm sm:flex">
+      {nav.map((item) => (
+        <a href={item.href} class="text-slate-600 hover:text-accent dark:text-slate-400">{item.label}</a>
+      ))}
+    </nav>
+    <a
+      href={profile.resumePdf}
+      class="rounded-md bg-accent px-3 py-1.5 text-sm font-medium text-white dark:text-slate-950 hover:opacity-90"
+      download
+    >
+      Download CV
+    </a>
+  </div>
+</header>

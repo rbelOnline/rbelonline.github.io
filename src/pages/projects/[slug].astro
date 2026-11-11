@@ -1,0 +1,107 @@
+---
+import { getCollection, render } from 'astro:content';
+import BaseLayout from '../../layouts/BaseLayout.astro';
+import Icon from '../../components/Icon.astro';
+
+export async function getStaticPaths() {
+  const projects = await getCollection('projects');
+  return projects.map((project) => ({
+    params: { slug: project.id },
+    props: { project },
+  }));
+}
+
+const { project } = Astro.props;
+const { title, summary, image, tech, demo, repo, live, layers, api } = project.data;
+const { Content } = await render(project);
+---
+
+<BaseLayout title={`${title} — Portfolio`} description={summary}>
+  <article class="py-14">
+    <a href="/#portfolio" class="text-sm text-accent hover:underline">← Back to portfolio</a>
+    <div class="mt-4 flex flex-wrap items-center gap-3">
+      <h1 class="text-3xl font-bold tracking-tight sm:text-4xl">{title}</h1>
+      {
+        live && (
+          <span class="flex items-center gap-1 text-sm text-emerald-600 dark:text-emerald-400">
+            <span class="h-2 w-2 rounded-full bg-emerald-500" />
+            online
+          </span>
+        )
+      }
+    </div>
+    <p class="mt-3 text-lg text-slate-600 dark:text-slate-400">{summary}</p>
+
+    <div class="mt-6 flex flex-wrap items-center gap-3">
+      {
+        demo && (
+          <a
+            href={demo}
+            target="_blank"
+            rel="noopener"
+            class="rounded-md bg-accent px-4 py-2 text-sm font-medium text-white hover:opacity-90 dark:text-slate-950"
+          >
+            Live demo ↗
+          </a>
+        )
+      }
+      {
+        repo && (
+          <a
+            href={repo}
+            target="_blank"
+            rel="noopener"
+            class="rounded-md border border-slate-300 px-4 py-2 text-sm font-medium hover:border-accent dark:border-slate-700"
+          >
+            Source code ↗
+          </a>
+        )
+      }
+      {tech.map((t) => <span class="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs dark:bg-slate-800">{t}</span>)}
+    </div>
+
+    {
+      image && (
+        <img
+          src={image}
+          alt={`Screenshot of ${title}`}
+          class="mt-10 w-full rounded-xl border border-slate-200 dark:border-slate-800"
+        />
+      )
+    }
+
+    {
+      layers.length > 0 && (
+        <section class="mt-12">
+          <h2 class="mb-4 text-xl font-semibold">How it's built</h2>
+          <ol class="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+            {layers.map((layer) => (
+              <li class="reveal rounded-xl border border-slate-200 p-4 dark:border-slate-800">
+                <p class="mb-2 flex items-center gap-2 font-semibold">
+                  <Icon name={layer.name} class="h-5 w-5 text-accent" />
+                  {layer.name}
+                </p>
+                <p class="text-sm text-slate-600 dark:text-slate-400">{layer.detail}</p>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )
+    }
+
+    {
+      api && (
+        <section class="mt-12">
+          <h2 class="mb-4 text-xl font-semibold">Sample API call</h2>
+          <pre class="overflow-auto rounded-xl bg-slate-900 p-5 font-mono text-sm leading-relaxed text-slate-100"><span class="font-semibold text-violet-300">{api.method}</span> {api.path}
+
+{api.response.trim()}</pre>
+        </section>
+      )
+    }
+
+    <div class="prose prose-slate mt-12 max-w-none dark:prose-invert">
+      <Content />
+    </div>
+  </article>
+</BaseLayout>

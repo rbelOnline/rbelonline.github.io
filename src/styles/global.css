@@ -1,0 +1,60 @@
+@import "tailwindcss";
+@plugin "@tailwindcss/typography";
+
+/* The site always uses its dark (galaxy) theme: "dark:" styles follow the .dark class on <html>. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* Change the accent color here — it is used across the whole site. */
+@theme {
+  --color-accent: #5b21b6;
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, monospace;
+}
+
+/* Lighter purple on the dark galaxy background so links and text stay readable. */
+.dark {
+  --color-accent: #a78bfa;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+/* Blinking cursor for the typing headline */
+.typing-cursor {
+  display: inline-block;
+  width: 2px;
+  height: 1.1em;
+  margin-left: 3px;
+  vertical-align: -0.15em;
+  background: var(--color-accent);
+  animation: blink 1s steps(1) infinite;
+}
+@keyframes blink {
+  50% { opacity: 0; }
+}
+
+/* Scroll animations (only when JavaScript is on) */
+.js .reveal {
+  opacity: 0;
+  transform: translateY(16px);
+  transition: opacity 0.6s ease, transform 0.6s ease;
+}
+.js .reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+.js .timeline-line {
+  transform-origin: top;
+  transform: scaleY(0);
+  transition: transform 1.4s ease;
+}
+.js .timeline-line.is-visible {
+  transform: scaleY(1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .js .reveal,
+  .js .timeline-line { opacity: 1; transform: none; transition: none; }
+  .typing-cursor { animation: none; }
+}
